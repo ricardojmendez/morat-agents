@@ -44,11 +44,13 @@ const createAgent = (key: string) => {
 };
 
 const agentOperate = async (agent: Agent): Promise<void> => {
-	const maxPctToTransfer = 0.1;
+	const minPctToTransfer = 0.05;
+	const maxPctToTransfer = 0.25;
 	/* eslint no-constant-condition: 0 */
 	while (true) {
 		await Bun.sleep(agent.actionMs);
-		const pctToTransfer = Math.random() * maxPctToTransfer;
+		const pctToTransfer =
+			Math.random() * (maxPctToTransfer - minPctToTransfer) + minPctToTransfer;
 		if (pctToTransfer <= 0) {
 			continue;
 		}
