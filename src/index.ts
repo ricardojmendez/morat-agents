@@ -44,16 +44,12 @@ const createAgent = (key: string) => {
 };
 
 const agentOperate = async (agent: Agent): Promise<void> => {
-	const minPctToTransfer = 0.05;
-	const maxPctToTransfer = 0.25;
+	const minPointsToTransfer = 10;
+	const maxPctToTransfer = 0.1;
 	/* eslint no-constant-condition: 0 */
 	while (true) {
 		await Bun.sleep(agent.actionMs);
-		const pctToTransfer =
-			Math.random() * (maxPctToTransfer - minPctToTransfer) + minPctToTransfer;
-		if (pctToTransfer <= 0) {
-			continue;
-		}
+
 		const friendIdx = Math.floor(Math.random() * agent.friends.length);
 		const friend = agent.friends[friendIdx];
 
@@ -65,11 +61,24 @@ const agentOperate = async (agent: Agent): Promise<void> => {
 		console.log(
 			`Agent ${agent.key} has ${body.own}/${body.assigned}/${body.total} points`
 		);
-		const pointsToTransfer = Math.round(pctToTransfer * body.total);
+		const availablePoints = body.total;
+		// Do not clamp this to maxPctToTransfer, because chances are Math.random() will
+		// return a value higher than that, so it will often transfer tha max. Multiplying
+		// by the max is better.
+		const pctToTransfer = Math.max(Math.random() * maxPctToTransfer, 0.0001);
+		const pointsToTransfer = Math.max(
+			minPointsToTransfer,
+			Math.round(pctToTransfer * availablePoints)
+		);
 
-		if (pointsToTransfer <= 0) {
+		if (availablePoints <= 0) {
 			console.warn(
 				` . Agent ${agent.key} has no points to transfer - skipping`
+			);
+			continue;
+		} else if (availablePoints < pointsToTransfer) {
+			console.warn(
+				` . Agent ${agent.key} only has ${availablePoints} points, not enough to transfer`
 			);
 			continue;
 		}
