@@ -1,11 +1,10 @@
 import { Elysia } from 'elysia';
 
-const muratUrl = 'http://localhost:3000';
+const moratUrl = 'http://localhost:3000';
 const maxAgents = 10;
 const agentMinActionSeconds = 0.5;
 const agentMaxActionSeconds = 5;
 const agentMinFriends = 1;
-const agentMaxFriends = Math.floor(maxAgents * 0.8);
 
 type Agent = {
 	key: string;
@@ -17,6 +16,8 @@ const agentKeys = new Set<string>();
 
 const createAgent = (key: string) => {
 	const allKeys = Array.from(agentKeys);
+
+	const agentMaxFriends = Math.floor(allKeys.length * 0.8);
 
 	const friends: string[] = [];
 	const friendCount = Math.floor(
@@ -53,7 +54,7 @@ const agentOperate = async (agent: Agent): Promise<void> => {
 		const friendIdx = Math.floor(Math.random() * agent.friends.length);
 		const friend = agent.friends[friendIdx];
 
-		const response = await fetch(`${muratUrl}/points/${agent.key}/tally`, {
+		const response = await fetch(`${moratUrl}/points/${agent.key}/tally`, {
 			method: 'GET',
 			headers: { 'Content-Type': 'application/json' },
 		});
@@ -87,7 +88,7 @@ const agentOperate = async (agent: Agent): Promise<void> => {
 			` . Agent ${agent.key} will assign ${pointsToTransfer} points to ${friend}`
 		);
 		const assignResp = await fetch(
-			`${muratUrl}/points/transfer/${agent.key}/${friend}/${pointsToTransfer}`,
+			`${moratUrl}/points/transfer/${agent.key}/${friend}/${pointsToTransfer}`,
 			{
 				method: 'PUT',
 				headers: { 'Content-Type': 'application/json' },
@@ -108,7 +109,7 @@ for (let i = 0; i < maxAgents; i++) {
 	} while (agentKeys.has(key));
 	agentKeys.add(key);
 
-	const response = await fetch(`${muratUrl}/user/${key}`, {
+	const response = await fetch(`${moratUrl}/user/${key}`, {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
 	});
@@ -119,6 +120,19 @@ for (let i = 0; i < maxAgents; i++) {
 		const body = await response.json();
 		// console.log(body);
 		console.log(` . Created user ${key} epoch ${body.epochSignUp}`);
+	}
+}
+
+console.log('Getting all existing users...');
+const respAgents = await fetch(`${moratUrl}/user`, {
+	method: 'GET',
+	headers: { 'Content-Type': 'application/json' },
+});
+const userList = await respAgents.json();
+agentKeys.clear();
+for (const key of userList) {
+	if (key != 'morat') {
+		agentKeys.add(key);
 	}
 }
 
