@@ -10,6 +10,7 @@ type Agent = {
 	key: string;
 	friends: string[];
 	actionMs: number;
+	maxPctToTransfer: number;
 };
 
 const agentKeys = new Set<string>();
@@ -40,13 +41,13 @@ const createAgent = (key: string) => {
 		key,
 		friends,
 		actionMs,
+		maxPctToTransfer: 0.1 + Math.random() * 0.15, // They'll transfer a maximum of 25% of their points
 	};
 	return agent;
 };
 
 const agentOperate = async (agent: Agent): Promise<void> => {
 	const minPointsToTransfer = 10;
-	const maxPctToTransfer = 0.1;
 	/* eslint no-constant-condition: 0 */
 	while (true) {
 		await Bun.sleep(agent.actionMs);
@@ -66,7 +67,10 @@ const agentOperate = async (agent: Agent): Promise<void> => {
 		// Do not clamp this to maxPctToTransfer, because chances are Math.random() will
 		// return a value higher than that, so it will often transfer tha max. Multiplying
 		// by the max is better.
-		const pctToTransfer = Math.max(Math.random() * maxPctToTransfer, 0.0001);
+		const pctToTransfer = Math.max(
+			Math.random() * agent.maxPctToTransfer,
+			0.0001
+		);
 		const pointsToTransfer = Math.max(
 			minPointsToTransfer,
 			Math.round(pctToTransfer * availablePoints)
@@ -85,7 +89,7 @@ const agentOperate = async (agent: Agent): Promise<void> => {
 		}
 
 		console.log(
-			` . Agent ${agent.key} will assign ${pointsToTransfer} points to ${friend}`
+			` . Agent ${agent.key} will assign ${pointsToTransfer} points to ${friend} (${(pctToTransfer * 100).toFixed(2)}%/${(agent.maxPctToTransfer * 100).toFixed(2)}% max)`
 		);
 		const assignResp = await fetch(
 			`${moratUrl}/points/transfer/${agent.key}/${friend}/${pointsToTransfer}`,
