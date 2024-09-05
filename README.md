@@ -11,4 +11,4 @@ To start the development server run:
 bun run dev --watch
 ```
 
-It expects the morat reference API to be running locally on port 3000.
+It expects the [Morat reference API](https://github.com/Numergent/morat-reference) to be running locally on port 3000.
