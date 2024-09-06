@@ -1,7 +1,7 @@
 import { Elysia } from 'elysia';
 
 const moratUrl = 'http://localhost:3000';
-const maxAgents = 10;
+const maxAgents = 50;
 const agentMinActionSeconds = 0.5;
 const agentMaxActionSeconds = 5;
 const agentMinFriends = 1;
