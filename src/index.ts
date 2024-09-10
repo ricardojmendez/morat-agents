@@ -1,16 +1,25 @@
 import { Elysia } from 'elysia';
 
 const moratUrl = 'http://localhost:3000';
-const maxAgents = 10;
+const maxAgents = 50;
 const agentMinActionSeconds = 0.5;
 const agentMaxActionSeconds = 5;
 const agentMinFriends = 1;
+
+const pointAmounts = [10, 100, 250];
+const pointStyleOdds = [0.5, 0.3, 0.1];
+const pointAmountsProb = [
+	[0.75, 0.25, 0.05], // Skews cheap
+	[0.17, 0.66, 0.17], // Kinda normal distribution
+	[0.15, 0.35, 0.5], // Skews generous
+];
 
 type Agent = {
 	key: string;
 	friends: string[];
 	actionMs: number;
-	maxPctToTransfer: number;
+	pointsStyle: number;
+	pointsProb: number[];
 };
 
 const agentKeys = new Set<string>();
@@ -37,11 +46,21 @@ const createAgent = (key: string) => {
 			(Math.random() * (agentMaxActionSeconds - agentMinActionSeconds) +
 				agentMinActionSeconds)
 	);
+	const styleChoice = Math.random();
+	let pointsStyle = 0;
+	for (let i = 0, oddsAcc = 0; i < pointStyleOdds.length; i++) {
+		oddsAcc += pointStyleOdds[i];
+		if (styleChoice < oddsAcc) {
+			pointsStyle = i;
+			break;
+		}
+	}
 	const agent: Agent = {
 		key,
 		friends,
 		actionMs,
-		maxPctToTransfer: 0.1 + Math.random() * 0.15, // They'll transfer a maximum of 25% of their points
+		pointsStyle,
+		pointsProb: pointAmountsProb[pointsStyle],
 	};
 	return agent;
 };
@@ -67,15 +86,23 @@ const agentOperate = async (agent: Agent): Promise<void> => {
 		// Do not clamp this to maxPctToTransfer, because chances are Math.random() will
 		// return a value higher than that, so it will often transfer tha max. Multiplying
 		// by the max is better.
-		const pctToTransfer = Math.max(
-			Math.random() * agent.maxPctToTransfer,
-			0.0001
-		);
-		const pointsToTransfer = Math.max(
-			minPointsToTransfer,
-			Math.round(pctToTransfer * availablePoints)
-		);
-
+		const chosenOdds = Math.random();
+		let chosenAmount = 0;
+		for (
+			let i = 0, oddsAcc = 0, lastAmount = 0;
+			i < pointAmounts.length && pointAmounts[i] <= availablePoints;
+			i++
+		) {
+			oddsAcc += agent.pointsProb[i];
+			if (chosenOdds < oddsAcc) {
+				chosenAmount = pointAmounts[i];
+				break;
+			} else {
+				chosenAmount = lastAmount;
+				lastAmount = pointAmounts[i];
+			}
+		}
+		const pointsToTransfer = Math.max(minPointsToTransfer, chosenAmount);
 		if (availablePoints <= 0) {
 			console.warn(
 				` . Agent ${agent.key} has no points to transfer - skipping`
@@ -89,7 +116,7 @@ const agentOperate = async (agent: Agent): Promise<void> => {
 		}
 
 		console.log(
-			` . Agent ${agent.key} will assign ${pointsToTransfer} points to ${friend} (${(pctToTransfer * 100).toFixed(2)}%/${(agent.maxPctToTransfer * 100).toFixed(2)}% max)`
+			` . Agent ${agent.key} will assign ${pointsToTransfer} points to ${friend} (mode: ${agent.pointsStyle})`
 		);
 		const assignResp = await fetch(
 			`${moratUrl}/points/transfer/${agent.key}/${friend}/${pointsToTransfer}`,
@@ -144,7 +171,9 @@ const allAgents = Array.from(agentKeys).map(createAgent);
 
 console.log('Roll call...');
 for (const agent of allAgents) {
-	console.log(` . Agent ${agent.key} has ${agent.friends.length} friends`);
+	console.log(
+		` . Agent ${agent.key} has ${agent.friends.length} friends, mode: ${agent.pointsStyle}`
+	);
 }
 
 const app = new Elysia()
