@@ -5,6 +5,7 @@ const maxAgents = 50;
 const agentMinActionSeconds = 0.5;
 const agentMaxActionSeconds = 5;
 const agentMinFriends = 1;
+const optOutOdds = 0.1;
 
 const pointAmounts = [10, 100, 250];
 const pointStyleOdds = [0.5, 0.3, 0.1];
@@ -23,6 +24,7 @@ type Agent = {
 };
 
 const agentKeys = new Set<string>();
+const optsOutKeys = new Set<string>();
 
 const createAgent = (key: string) => {
 	const allKeys = Array.from(agentKeys);
@@ -74,15 +76,29 @@ const agentOperate = async (agent: Agent): Promise<void> => {
 		const friendIdx = Math.floor(Math.random() * agent.friends.length);
 		const friend = agent.friends[friendIdx];
 
-		const response = await fetch(`${moratUrl}/points/${agent.key}/tally`, {
+		if (optsOutKeys.has(agent.key)) {
+			// Agents who have opted out will claim their points once per tick
+			const claimReq = await fetch(`${moratUrl}/points/claim/${agent.key}`, {
+				method: 'PUT',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ index: 0 }),
+			});
+			if (!claimReq.ok) {
+				const claimBody = await claimReq.text();
+				console.error(`Failed to claim points for ${agent.key}`);
+				console.error(` . ${claimReq.status} ${claimBody}`);
+			}
+		}
+
+		const tallyResp = await fetch(`${moratUrl}/points/${agent.key}/tally`, {
 			method: 'GET',
 			headers: { 'Content-Type': 'application/json' },
 		});
-		const body = await response.json();
+		const tallyBody = await tallyResp.json();
 		console.log(
-			`Agent ${agent.key} has ${body.own}/${body.assigned}/${body.total} points`
+			`Agent ${agent.key} has ${tallyBody.own}/${tallyBody.assigned}/${tallyBody.total} points`
 		);
-		const availablePoints = body.total;
+		const availablePoints = tallyBody.total;
 		// Do not clamp this to maxPctToTransfer, because chances are Math.random() will
 		// return a value higher than that, so it will often transfer tha max. Multiplying
 		// by the max is better.
@@ -140,9 +156,15 @@ for (let i = 0; i < maxAgents; i++) {
 	} while (agentKeys.has(key));
 	agentKeys.add(key);
 
+	const optsIn = Math.random() > optOutOdds;
+	if (!optsIn) {
+		optsOutKeys.add(key);
+	}
+
 	const response = await fetch(`${moratUrl}/user/${key}`, {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ optsIn }),
 	});
 
 	if (response.status !== 200) {
@@ -150,7 +172,9 @@ for (let i = 0; i < maxAgents; i++) {
 	} else {
 		const body = await response.json();
 		// console.log(body);
-		console.log(` . Created user ${key} epoch ${body.epochSignUp}`);
+		console.log(
+			` . Created user ${key} epoch ${body.epochSignUp}. Opted in: ${optsIn}`
+		);
 	}
 }
 
@@ -164,6 +188,14 @@ agentKeys.clear();
 for (const key of userList) {
 	if (key != 'morat') {
 		agentKeys.add(key);
+		const agentResp = await fetch(`${moratUrl}/user/${key}`, {
+			method: 'GET',
+		});
+		const agent = await agentResp.json();
+		if (!agent.optsIn) {
+			console.log(` . Agent ${key} has opted out`);
+			optsOutKeys.add(key);
+		}
 	}
 }
 
